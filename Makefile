@@ -12,7 +12,7 @@ SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_ttf SDL2_mixer)
 SDL_LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_ttf SDL2_mixer)
 
 # Add all flags together
-CFLAGS = -Wall -g $(SDL_CFLAGS)
+CFLAGS = -Wall -Wextra -O2 -g $(SDL_CFLAGS)
 LDFLAGS = -lcurl -lcjson -lm $(SDL_LDFLAGS)
 
 .PHONY: all clean

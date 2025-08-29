@@ -356,16 +356,19 @@ Mix_Chunk* create_beep(int freq, int duration_ms) {
         buffer[i] = (Sint16)(volume * sin(2.0 * M_PI * freq * i / sample_rate));
     }
 
-    // Use Mix_QuickLoad_RAW which copies the data into a new chunk.
-    Mix_Chunk* chunk = Mix_QuickLoad_RAW((Uint8*)buffer, buffer_size);
-    
-    // This is safer as we can now free our temporary buffer.
-    free(buffer);
+    SDL_RWops* rw = SDL_RWFromMem(buffer, buffer_size);
+    if (!rw) {
+        free(buffer);
+        return NULL;
+    }
+
+    Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1); // 1 => SDL frees rw
+    free(buffer); // Mix_LoadWAV_RW copies data, so we can free the buffer
 
     if (chunk) {
         chunk->volume = MIX_MAX_VOLUME / 4;
     }
-    
+
     return chunk;
 }
 
@@ -380,6 +383,10 @@ void fetch_and_process_data() {
     if (!curl_handle) return;
     
     struct MemoryStruct chunk = { .memory = malloc(1), .size = 0 };
+    if (!chunk.memory) {
+        curl_easy_cleanup(curl_handle);
+        return;
+    }
     curl_easy_setopt(curl_handle, CURLOPT_URL, dump1090_url);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
@@ -439,26 +446,28 @@ void fetch_and_process_data() {
                     char api_url[256];
                     snprintf(api_url, sizeof(api_url), "https://api.adsb.lol/v2/hex/%s", g_closest_plane.hex);
                     struct MemoryStruct api_chunk = { .memory = malloc(1), .size = 0 };
-                    curl_easy_setopt(curl_handle, CURLOPT_URL, api_url);
-                    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&api_chunk);
-                    if(curl_easy_perform(curl_handle) == CURLE_OK && api_chunk.size > 0) {
-                        cJSON *api_root = cJSON_Parse(api_chunk.memory);
-                        if(api_root) {
-                            cJSON *ac_array = cJSON_GetObjectItemCaseSensitive(api_root, "ac");
-                            if (cJSON_IsArray(ac_array) && cJSON_GetArraySize(ac_array) > 0) {
-                                cJSON *ac_info = cJSON_GetArrayItem(ac_array, 0);
-                                cJSON *item;
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "r");
-                                if (item && item->valuestring) snprintf(g_closest_plane.registration, sizeof(g_closest_plane.registration), "%s", item->valuestring);
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "t");
-                                if (item && item->valuestring) snprintf(g_closest_plane.aircraft_type, sizeof(g_closest_plane.aircraft_type), "%s", item->valuestring);
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
-                                if (item && item->valuestring) snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                    if (api_chunk.memory) {
+                        curl_easy_setopt(curl_handle, CURLOPT_URL, api_url);
+                        curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&api_chunk);
+                        if(curl_easy_perform(curl_handle) == CURLE_OK && api_chunk.size > 0) {
+                            cJSON *api_root = cJSON_Parse(api_chunk.memory);
+                            if(api_root) {
+                                cJSON *ac_array = cJSON_GetObjectItemCaseSensitive(api_root, "ac");
+                                if (cJSON_IsArray(ac_array) && cJSON_GetArraySize(ac_array) > 0) {
+                                    cJSON *ac_info = cJSON_GetArrayItem(ac_array, 0);
+                                    cJSON *item;
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "r");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.registration, sizeof(g_closest_plane.registration), "%s", item->valuestring);
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "t");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.aircraft_type, sizeof(g_closest_plane.aircraft_type), "%s", item->valuestring);
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                }
+                                cJSON_Delete(api_root);
                             }
-                            cJSON_Delete(api_root);
                         }
+                        free(api_chunk.memory);
                     }
-                    free(api_chunk.memory);
                 } else {
                     // No planes detected, reset to default state
                     snprintf(g_closest_plane.flight, sizeof(g_closest_plane.flight), "No aircraft in range");
@@ -473,7 +482,7 @@ void fetch_and_process_data() {
              cJSON_Delete(root);
         }
     }
-    
+
     free(chunk.memory);
     curl_easy_cleanup(curl_handle);
 }
