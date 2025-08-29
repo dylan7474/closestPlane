@@ -84,11 +84,11 @@ const char* get_squawk_description(const char* squawk);
 void fetch_and_process_data();
 
 
-int main(int argc, char *argv[]) {
+int main(void) {
     load_config();
 
     if (!init_sdl()) {
-        printf("Failed to initialize SDL components!\n");
+        fprintf(stderr, "Failed to initialize SDL components!\n");
         return 1;
     }
     
@@ -246,24 +246,72 @@ void load_config() {
  * @brief Initializes SDL, TTF, Mixer, creates a window, renderer, and loads resources.
  */
 bool init_sdl() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) return false;
-    if (TTF_Init() == -1) return false;
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) return false;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        SDL_Log("SDL_Init failed: %s", SDL_GetError());
+        return false;
+    }
+
+    if (TTF_Init() == -1) {
+        SDL_Log("TTF_Init failed: %s", TTF_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        SDL_Log("Mix_OpenAudio failed: %s", Mix_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     g_window = SDL_CreateWindow("Closest Aircraft Finder", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN_DESKTOP);
-    if (!g_window) return false;
+    if (!g_window) {
+        SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
+        Mix_CloseAudio();
+        Mix_Quit();
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED);
-    if (!g_renderer) return false;
+    if (!g_renderer) {
+        SDL_Log("SDL_CreateRenderer failed: %s", SDL_GetError());
+        SDL_DestroyWindow(g_window);
+        Mix_CloseAudio();
+        Mix_Quit();
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     // Load font from embedded memory
     SDL_RWops* rw = SDL_RWFromConstMem(PressStart2P_Regular_ttf, PressStart2P_Regular_ttf_len);
     g_font = TTF_OpenFontRW(rw, 1, FONT_SIZE); // 1 to close the stream after
-    if (!g_font) return false;
+    if (!g_font) {
+        SDL_Log("TTF_OpenFontRW failed: %s", TTF_GetError());
+        SDL_DestroyRenderer(g_renderer);
+        SDL_DestroyWindow(g_window);
+        Mix_CloseAudio();
+        Mix_Quit();
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     // Create synthesized beep sound
     g_alert_sound = create_beep(880, 500); // 880Hz (A5 note) for 500ms
-    if (!g_alert_sound) return false;
+    if (!g_alert_sound) {
+        SDL_Log("Failed to create alert sound");
+        TTF_CloseFont(g_font);
+        SDL_DestroyRenderer(g_renderer);
+        SDL_DestroyWindow(g_window);
+        Mix_CloseAudio();
+        Mix_Quit();
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     return true;
 }
@@ -272,16 +320,24 @@ bool init_sdl() {
  * @brief Cleans up all SDL resources.
  */
 void close_sdl() {
-    Mix_FreeChunk(g_alert_sound);
-    TTF_CloseFont(g_font);
-    SDL_DestroyRenderer(g_renderer);
-    SDL_DestroyWindow(g_window);
-    
-    g_alert_sound = NULL;
-    g_font = NULL;
-    g_renderer = NULL;
-    g_window = NULL;
+    if (g_alert_sound) {
+        Mix_FreeChunk(g_alert_sound);
+        g_alert_sound = NULL;
+    }
+    if (g_font) {
+        TTF_CloseFont(g_font);
+        g_font = NULL;
+    }
+    if (g_renderer) {
+        SDL_DestroyRenderer(g_renderer);
+        g_renderer = NULL;
+    }
+    if (g_window) {
+        SDL_DestroyWindow(g_window);
+        g_window = NULL;
+    }
 
+    Mix_CloseAudio();
     Mix_Quit();
     TTF_Quit();
     SDL_Quit();
