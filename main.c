@@ -519,8 +519,21 @@ void fetch_and_process_data() {
                                     if (item && item->valuestring) snprintf(g_closest_plane.registration, sizeof(g_closest_plane.registration), "%s", item->valuestring);
                                     item = cJSON_GetObjectItemCaseSensitive(ac_info, "t");
                                     if (item && item->valuestring) snprintf(g_closest_plane.aircraft_type, sizeof(g_closest_plane.aircraft_type), "%s", item->valuestring);
-                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
-                                    if (item && item->valuestring) snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "operator");
+                                    if (item && cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
+                                        snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                    } else {
+                                        // Fallback keys used by some APIs
+                                        item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
+                                        if (item && cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
+                                            snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                        } else {
+                                            item = cJSON_GetObjectItemCaseSensitive(ac_info, "op");
+                                            if (item && cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
+                                                snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                            }
+                                        }
+                                    }
                                 }
                                 cJSON_Delete(api_root);
                             }
