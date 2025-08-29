@@ -17,7 +17,7 @@ Track the aircraft nearest to your configured location using ADS-B data from a d
 - The app refreshes every few seconds and plays an audible alert for nearby traffic.
 
 ## Roadmap
-- Provide a Windows Makefile and prebuilt binaries.
+- Provide prebuilt binaries.
 - Configurable alert radius and update interval.
 - GUI widgets for changing location at runtime.
 - Packaging scripts and richer aircraft visualisations.

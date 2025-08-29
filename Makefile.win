@@ -1,0 +1,44 @@
+# Makefile.win - Build script for Windows using MinGW-w64
+#
+# This Makefile mirrors the behaviour of the Unix Makefile but targets
+# a Windows environment. It expects the MinGW-w64 toolchain along with
+# pkg-config files for libcurl, cJSON, SDL2, SDL2_ttf and SDL2_mixer to
+# be available. Build by running:
+#   make -f Makefile.win
+
+# Compiler and pkg-config commands for 64-bit Windows
+CC = x86_64-w64-mingw32-gcc
+PKG_CONFIG = x86_64-w64-mingw32-pkg-config
+
+TARGET = find_closest_plane.exe
+SRCS = main.c
+OBJS = $(SRCS:.c=.o)
+
+# Retrieve compiler and linker flags from pkg-config
+SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_ttf SDL2_mixer)
+SDL_LDFLAGS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_ttf SDL2_mixer)
+BASE_LDFLAGS := $(shell $(PKG_CONFIG) --libs libcurl libcjson)
+
+CFLAGS = -Wall -Wextra -O2 -g $(SDL_CFLAGS)
+LDFLAGS = $(BASE_LDFLAGS) -lm $(SDL_LDFLAGS)
+
+.PHONY: all clean
+
+all: font_data.h $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $^ -o $@ $(LDFLAGS)
+
+# Rule to convert the font file into a C header file
+font_data.h: PressStart2P-Regular.ttf
+	echo Embedding font...
+	xxd -i $< > $@
+
+# Ensure font is embedded before compiling main.c
+main.o: font_data.h
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(TARGET) $(OBJS) font_data.h
