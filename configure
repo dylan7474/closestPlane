@@ -37,7 +37,7 @@ check_command xxd
 
 # Check for required libraries
 check_library "libcurl"     "libcurl4-openssl-dev"
-check_library "libcjson"    "libcjson-dev"
+check_library "libcjson"    "libcjson-dev"    # cJSON library
 check_library "sdl2"        "libsdl2-dev"
 check_library "SDL2_ttf"    "libsdl2-ttf-dev"
 check_library "SDL2_mixer"  "libsdl2-mixer-dev"
