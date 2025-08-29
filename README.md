@@ -10,7 +10,7 @@ Track the aircraft nearest to your configured location using ADS-B data from a d
 
 ### Windows
 1. Install the same dependencies (`libcurl`, `libcjson`, `SDL2`, `SDL2_ttf`, `SDL2_mixer`, `xxd`) using your preferred package manager.
-2. Run `make -f Makefile.win`.
+2. Run `make -f Makefile.win`. The script will use the MinGW-w64 toolchain when available and otherwise fall back to the native compiler.
 
 ## Controls
 - `ESC` or close the window to exit.

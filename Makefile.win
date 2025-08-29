@@ -7,8 +7,15 @@
 #   make -f Makefile.win
 
 # Compiler and pkg-config commands for 64-bit Windows
-CC = x86_64-w64-mingw32-gcc
-PKG_CONFIG = x86_64-w64-mingw32-pkg-config
+#
+# If the MinGW-w64 tools are not installed, fall back to the native
+# `gcc` and `pkg-config` so the build can still proceed. This allows the
+# Makefile to be invoked on systems without a cross compiler, though the
+# resulting binary will target the host platform rather than Windows.
+CROSS_CC := $(shell which x86_64-w64-mingw32-gcc 2>/dev/null)
+CROSS_PKG_CONFIG := $(shell which x86_64-w64-mingw32-pkg-config 2>/dev/null)
+CC := $(if $(CROSS_CC),x86_64-w64-mingw32-gcc,gcc)
+PKG_CONFIG := $(if $(CROSS_PKG_CONFIG),x86_64-w64-mingw32-pkg-config,pkg-config)
 
 TARGET = find_closest_plane.exe
 SRCS = main.c
