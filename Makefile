@@ -1,22 +1,26 @@
 # Makefile for the graphical aircraft finder application
-# It links against libcurl, cJSON, SDL2, SDL2_ttf, and SDL2_mixer.
+# It links against system libraries for libcurl, cJSON, SDL2, SDL2_ttf, and SDL2_mixer.
 # It also automatically embeds the font file into the executable.
 
 CC = gcc
 TARGET = find_closest_plane
-SRCS = main.c cjson/cJSON.c
-
-# Get compiler and linker flags from sdl2-config
-SDL_CFLAGS = $(shell sdl2-config --cflags)
-SDL_LDFLAGS = $(shell sdl2-config --libs) -lSDL2_ttf -lSDL2_mixer
-
-# Add all flags together
-CFLAGS = -Wall -g -Icjson $(SDL_CFLAGS)
-LDFLAGS = -lcurl -lm $(SDL_LDFLAGS)
-
+SRCS = main.c
 OBJS = $(SRCS:.c=.o)
 
-all: $(TARGET)
+# Get compiler and linker flags from pkg-config
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_ttf SDL2_mixer)
+SDL_LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_ttf SDL2_mixer)
+
+# Add all flags together
+CFLAGS = -Wall -g $(SDL_CFLAGS)
+LDFLAGS = -lcurl -lcjson -lm $(SDL_LDFLAGS)
+
+.PHONY: all clean
+
+all: font_data.h $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $^ -o $@ $(LDFLAGS)
 
 # Rule to convert the font file into a C header file
 font_data.h: PressStart2P-Regular.ttf
@@ -24,12 +28,9 @@ font_data.h: PressStart2P-Regular.ttf
 	@xxd -i PressStart2P-Regular.ttf > font_data.h
 
 # Make sure the font header is generated before compiling main.c
-main.o: main.c font_data.h
+main.o: font_data.h
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET) $(LDFLAGS)
-
-.c.o:
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
