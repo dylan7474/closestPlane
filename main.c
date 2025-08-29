@@ -60,6 +60,7 @@ SDL_Window* g_window = NULL;
 SDL_Renderer* g_renderer = NULL;
 TTF_Font* g_font = NULL;
 Mix_Chunk* g_alert_sound = NULL;
+bool g_audio_available = false;
 struct Aircraft g_closest_plane;
 // Configuration globals
 char g_server_ip[40];
@@ -84,11 +85,11 @@ const char* get_squawk_description(const char* squawk);
 void fetch_and_process_data();
 
 
-int main(int argc, char *argv[]) {
+int main(void) {
     load_config();
 
     if (!init_sdl()) {
-        printf("Failed to initialize SDL components!\n");
+        fprintf(stderr, "Failed to initialize SDL components!\n");
         return 1;
     }
     
@@ -132,7 +133,7 @@ int main(int argc, char *argv[]) {
 
         // --- Proximity Alert Logic ---
         if (g_closest_plane.distance_km < PROXIMITY_ALERT_KM) {
-            if (!proximity_alert_triggered) {
+            if (!proximity_alert_triggered && g_alert_sound) {
                 Mix_PlayChannel(-1, g_alert_sound, 0);
                 proximity_alert_triggered = true;
             }
@@ -246,24 +247,72 @@ void load_config() {
  * @brief Initializes SDL, TTF, Mixer, creates a window, renderer, and loads resources.
  */
 bool init_sdl() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) return false;
-    if (TTF_Init() == -1) return false;
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) return false;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        SDL_Log("SDL_Init failed: %s", SDL_GetError());
+        return false;
+    }
+
+    if (TTF_Init() == -1) {
+        SDL_Log("TTF_Init failed: %s", TTF_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        SDL_Log("Mix_OpenAudio failed: %s", Mix_GetError());
+        g_audio_available = false;
+    } else {
+        g_audio_available = true;
+    }
 
     g_window = SDL_CreateWindow("Closest Aircraft Finder", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN_DESKTOP);
-    if (!g_window) return false;
+    if (!g_window) {
+        SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
+        if (g_audio_available) {
+            Mix_CloseAudio();
+            Mix_Quit();
+        }
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED);
-    if (!g_renderer) return false;
+    if (!g_renderer) {
+        SDL_Log("SDL_CreateRenderer failed: %s", SDL_GetError());
+        SDL_DestroyWindow(g_window);
+        if (g_audio_available) {
+            Mix_CloseAudio();
+            Mix_Quit();
+        }
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
     // Load font from embedded memory
     SDL_RWops* rw = SDL_RWFromConstMem(PressStart2P_Regular_ttf, PressStart2P_Regular_ttf_len);
     g_font = TTF_OpenFontRW(rw, 1, FONT_SIZE); // 1 to close the stream after
-    if (!g_font) return false;
+    if (!g_font) {
+        SDL_Log("TTF_OpenFontRW failed: %s", TTF_GetError());
+        SDL_DestroyRenderer(g_renderer);
+        SDL_DestroyWindow(g_window);
+        if (g_audio_available) {
+            Mix_CloseAudio();
+            Mix_Quit();
+        }
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
 
-    // Create synthesized beep sound
-    g_alert_sound = create_beep(880, 500); // 880Hz (A5 note) for 500ms
-    if (!g_alert_sound) return false;
+    if (g_audio_available) {
+        // Create synthesized beep sound
+        g_alert_sound = create_beep(880, 500); // 880Hz (A5 note) for 500ms
+        if (!g_alert_sound) {
+            SDL_Log("Failed to create alert sound");
+        }
+    }
 
     return true;
 }
@@ -272,17 +321,27 @@ bool init_sdl() {
  * @brief Cleans up all SDL resources.
  */
 void close_sdl() {
-    Mix_FreeChunk(g_alert_sound);
-    TTF_CloseFont(g_font);
-    SDL_DestroyRenderer(g_renderer);
-    SDL_DestroyWindow(g_window);
-    
-    g_alert_sound = NULL;
-    g_font = NULL;
-    g_renderer = NULL;
-    g_window = NULL;
-
-    Mix_Quit();
+    if (g_alert_sound) {
+        Mix_FreeChunk(g_alert_sound);
+        g_alert_sound = NULL;
+    }
+    if (g_font) {
+        TTF_CloseFont(g_font);
+        g_font = NULL;
+    }
+    if (g_renderer) {
+        SDL_DestroyRenderer(g_renderer);
+        g_renderer = NULL;
+    }
+    if (g_window) {
+        SDL_DestroyWindow(g_window);
+        g_window = NULL;
+    }
+    if (g_audio_available) {
+        Mix_CloseAudio();
+        Mix_Quit();
+        g_audio_available = false;
+    }
     TTF_Quit();
     SDL_Quit();
 }
@@ -356,16 +415,19 @@ Mix_Chunk* create_beep(int freq, int duration_ms) {
         buffer[i] = (Sint16)(volume * sin(2.0 * M_PI * freq * i / sample_rate));
     }
 
-    // Use Mix_QuickLoad_RAW which copies the data into a new chunk.
-    Mix_Chunk* chunk = Mix_QuickLoad_RAW((Uint8*)buffer, buffer_size);
-    
-    // This is safer as we can now free our temporary buffer.
-    free(buffer);
+    SDL_RWops* rw = SDL_RWFromMem(buffer, buffer_size);
+    if (!rw) {
+        free(buffer);
+        return NULL;
+    }
+
+    Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1); // 1 => SDL frees rw
+    free(buffer); // Mix_LoadWAV_RW copies data, so we can free the buffer
 
     if (chunk) {
         chunk->volume = MIX_MAX_VOLUME / 4;
     }
-    
+
     return chunk;
 }
 
@@ -380,6 +442,10 @@ void fetch_and_process_data() {
     if (!curl_handle) return;
     
     struct MemoryStruct chunk = { .memory = malloc(1), .size = 0 };
+    if (!chunk.memory) {
+        curl_easy_cleanup(curl_handle);
+        return;
+    }
     curl_easy_setopt(curl_handle, CURLOPT_URL, dump1090_url);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
@@ -439,26 +505,28 @@ void fetch_and_process_data() {
                     char api_url[256];
                     snprintf(api_url, sizeof(api_url), "https://api.adsb.lol/v2/hex/%s", g_closest_plane.hex);
                     struct MemoryStruct api_chunk = { .memory = malloc(1), .size = 0 };
-                    curl_easy_setopt(curl_handle, CURLOPT_URL, api_url);
-                    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&api_chunk);
-                    if(curl_easy_perform(curl_handle) == CURLE_OK && api_chunk.size > 0) {
-                        cJSON *api_root = cJSON_Parse(api_chunk.memory);
-                        if(api_root) {
-                            cJSON *ac_array = cJSON_GetObjectItemCaseSensitive(api_root, "ac");
-                            if (cJSON_IsArray(ac_array) && cJSON_GetArraySize(ac_array) > 0) {
-                                cJSON *ac_info = cJSON_GetArrayItem(ac_array, 0);
-                                cJSON *item;
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "r");
-                                if (item && item->valuestring) snprintf(g_closest_plane.registration, sizeof(g_closest_plane.registration), "%s", item->valuestring);
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "t");
-                                if (item && item->valuestring) snprintf(g_closest_plane.aircraft_type, sizeof(g_closest_plane.aircraft_type), "%s", item->valuestring);
-                                item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
-                                if (item && item->valuestring) snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                    if (api_chunk.memory) {
+                        curl_easy_setopt(curl_handle, CURLOPT_URL, api_url);
+                        curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&api_chunk);
+                        if(curl_easy_perform(curl_handle) == CURLE_OK && api_chunk.size > 0) {
+                            cJSON *api_root = cJSON_Parse(api_chunk.memory);
+                            if(api_root) {
+                                cJSON *ac_array = cJSON_GetObjectItemCaseSensitive(api_root, "ac");
+                                if (cJSON_IsArray(ac_array) && cJSON_GetArraySize(ac_array) > 0) {
+                                    cJSON *ac_info = cJSON_GetArrayItem(ac_array, 0);
+                                    cJSON *item;
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "r");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.registration, sizeof(g_closest_plane.registration), "%s", item->valuestring);
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "t");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.aircraft_type, sizeof(g_closest_plane.aircraft_type), "%s", item->valuestring);
+                                    item = cJSON_GetObjectItemCaseSensitive(ac_info, "ownOp");
+                                    if (item && item->valuestring) snprintf(g_closest_plane.operator, sizeof(g_closest_plane.operator), "%s", item->valuestring);
+                                }
+                                cJSON_Delete(api_root);
                             }
-                            cJSON_Delete(api_root);
                         }
+                        free(api_chunk.memory);
                     }
-                    free(api_chunk.memory);
                 } else {
                     // No planes detected, reset to default state
                     snprintf(g_closest_plane.flight, sizeof(g_closest_plane.flight), "No aircraft in range");
@@ -473,7 +541,7 @@ void fetch_and_process_data() {
              cJSON_Delete(root);
         }
     }
-    
+
     free(chunk.memory);
     curl_easy_cleanup(curl_handle);
 }
