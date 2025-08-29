@@ -10,14 +10,14 @@ Track the aircraft nearest to your configured location using ADS-B data from a d
 
 ### Windows
 1. Install the same dependencies (`libcurl`, `libcjson`, `SDL2`, `SDL2_ttf`, `SDL2_mixer`, `xxd`) using your preferred package manager.
-2. Run `make -f Makefile.win`.
+2. Run `make -f Makefile.win`. The script will use the MinGW-w64 toolchain when available and otherwise fall back to the native compiler.
 
 ## Controls
 - `ESC` or close the window to exit.
 - The app refreshes every few seconds and plays an audible alert for nearby traffic.
 
 ## Roadmap
-- Provide a Windows Makefile and prebuilt binaries.
+- Provide prebuilt binaries.
 - Configurable alert radius and update interval.
 - GUI widgets for changing location at runtime.
 - Packaging scripts and richer aircraft visualisations.
