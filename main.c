@@ -31,11 +31,11 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_mixer.h>
 
-#include "cJSON.h"
+#include <cjson/cJSON.h>
 #include "font_data.h" // Embedded font from xxd
 
 // --- Configuration ---
-#define FONT_SIZE 20
+#define WINDOW_WIDTH 1024
 #define EARTH_RADIUS_KM 6371.0
 #define REFRESH_INTERVAL_SECONDS 5
 #define PROXIMITY_ALERT_KM 5.0
@@ -531,4 +531,5 @@ const char* get_squawk_description(const char* squawk) {
     if (strcmp(squawk, "7000") == 0) return "VFR Conspicuity";
     return "Discrete Code";
 }
+
 
