@@ -4,11 +4,12 @@ Track the aircraft nearest to your configured location using ADS-B data from a d
 
 ## Build
 ### Linux
-1. Ensure `libcurl`, `cJSON`, `SDL2`, `SDL2_ttf`, `SDL2_mixer` and `xxd` are installed.
-2. Run `make`.
+1. Ensure `gcc`, `pkg-config`, `xxd`, `libcurl`, `libcjson` (`libcjson-dev` on Debian/Ubuntu), `SDL2`, `SDL2_ttf`, and `SDL2_mixer` are installed.
+2. Run `./configure` to verify dependencies.
+3. Run `make`.
 
 ### Windows
-1. Install the same dependencies using your preferred package manager.
+1. Install the same dependencies (`libcurl`, `libcjson`, `SDL2`, `SDL2_ttf`, `SDL2_mixer`, `xxd`) using your preferred package manager.
 2. Run `make -f Makefile.win`.
 
 ## Controls
