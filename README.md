@@ -2,6 +2,8 @@
 
 Track the aircraft nearest to your configured location using ADS-B data from a dump1090 server. The program opens a simple SDL2 window showing flight details and sounds an alert when a plane comes within 5 km.
 
+The application expects the dump1090 server's data feed to be available on port 8080.
+
 ## Build
 ### Linux
 1. Ensure `gcc`, `pkg-config`, `xxd`, `libcurl`, `libcjson` (`libcjson-dev` on Debian/Ubuntu), `SDL2`, `SDL2_ttf`, and `SDL2_mixer` are installed.
