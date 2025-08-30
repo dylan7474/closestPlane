@@ -40,6 +40,7 @@
 #define EARTH_RADIUS_KM 6371.0
 #define REFRESH_INTERVAL_SECONDS 5
 #define PROXIMITY_ALERT_KM 5.0
+#define DUMP1090_PORT 8080
 
 // --- Structs ---
 struct MemoryStruct {
@@ -436,7 +437,8 @@ Mix_Chunk* create_beep(int freq, int duration_ms) {
  */
 void fetch_and_process_data() {
     char dump1090_url[256];
-    snprintf(dump1090_url, sizeof(dump1090_url), "http://%s:8080/dump1090-fa/data/aircraft.json", g_server_ip);
+    snprintf(dump1090_url, sizeof(dump1090_url),
+             "http://%s:%d/dump1090-fa/data/aircraft.json", g_server_ip, DUMP1090_PORT);
 
     CURL *curl_handle = curl_easy_init();
     if (!curl_handle) return;
