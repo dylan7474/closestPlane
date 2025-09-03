@@ -75,7 +75,8 @@ void load_config();
 bool init_sdl();
 void close_sdl();
 void render_text(const char* text, int x, int y, SDL_Color color);
-void render_compass(int center_x, int center_y, double bearing);
+void render_compass(int center_x, int center_y, double bearing, double track);
+void draw_plane_icon(int x, int y, double angle_deg, SDL_Color color);
 Mix_Chunk* create_beep(int freq, int duration_ms);
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp);
 double deg2rad(double deg);
@@ -198,7 +199,7 @@ int main(void) {
         render_text(buffer, 10, y_pos, white); y_pos += 25;
 
         // Render the compass indicator
-        render_compass(window_w - 150, 150, g_closest_plane.bearing_deg);
+        render_compass(window_w - 150, 150, g_closest_plane.bearing_deg, g_closest_plane.track_deg);
 
         SDL_RenderPresent(g_renderer);
     }
@@ -365,9 +366,40 @@ void render_text(const char* text, int x, int y, SDL_Color color) {
 }
 
 /**
- * @brief Renders a compass with a fixed North arrow and a rotating bearing arrow.
+ * @brief Draws a simple plane-shaped symbol oriented by the given angle.
  */
-void render_compass(int center_x, int center_y, double bearing) {
+void draw_plane_icon(int x, int y, double angle_deg, SDL_Color color) {
+    SDL_SetRenderDrawColor(g_renderer, color.r, color.g, color.b, color.a);
+
+    double angle_rad = deg2rad(angle_deg);
+    double sinA = sin(angle_rad);
+    double cosA = cos(angle_rad);
+
+    int size = 12;
+    int half_wing = size / 2;
+
+    int nose_x = x + (int)(sinA * size);
+    int nose_y = y - (int)(cosA * size);
+    int tail_x = x - (int)(sinA * size);
+    int tail_y = y + (int)(cosA * size);
+    int wingL_x = x - (int)(cosA * half_wing);
+    int wingL_y = y - (int)(sinA * half_wing);
+    int wingR_x = x + (int)(cosA * half_wing);
+    int wingR_y = y + (int)(sinA * half_wing);
+    int tailL_x = tail_x - (int)(cosA * (half_wing / 2));
+    int tailL_y = tail_y - (int)(sinA * (half_wing / 2));
+    int tailR_x = tail_x + (int)(cosA * (half_wing / 2));
+    int tailR_y = tail_y + (int)(sinA * (half_wing / 2));
+
+    SDL_RenderDrawLine(g_renderer, nose_x, nose_y, tail_x, tail_y);
+    SDL_RenderDrawLine(g_renderer, wingL_x, wingL_y, wingR_x, wingR_y);
+    SDL_RenderDrawLine(g_renderer, tailL_x, tailL_y, tailR_x, tailR_y);
+}
+
+/**
+ * @brief Renders a compass with a fixed North arrow and a plane icon showing bearing and track.
+ */
+void render_compass(int center_x, int center_y, double bearing, double track) {
     int radius = 60;
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color cyan = {0, 255, 255, 255};
@@ -377,26 +409,16 @@ void render_compass(int center_x, int center_y, double bearing) {
     SDL_RenderDrawLine(g_renderer, center_x, center_y, center_x, center_y - radius);
     render_text("N", center_x - 8, center_y - radius - 25, white);
 
-    // --- Draw Aircraft Bearing Arrow (rotated) ---
-    double angle_rad = deg2rad(bearing);
-    int end_x = center_x + (int)(radius * sin(angle_rad));
-    int end_y = center_y - (int)(radius * cos(angle_rad));
-    
-    SDL_SetRenderDrawColor(g_renderer, cyan.r, cyan.g, cyan.b, cyan.a);
-    // Draw the main line of the arrow
-    SDL_RenderDrawLine(g_renderer, center_x, center_y, end_x, end_y);
-    
-    // Draw the arrowhead
-    int arrow_len = 15;
-    double arrow_angle_rad = deg2rad(25); // Angle of the arrowhead wings
+    // --- Draw line towards aircraft based on bearing ---
+    double bearing_rad = deg2rad(bearing);
+    int end_x = center_x + (int)(radius * sin(bearing_rad));
+    int end_y = center_y - (int)(radius * cos(bearing_rad));
 
-    int arrow_x1 = end_x - (int)(arrow_len * sin(angle_rad - arrow_angle_rad));
-    int arrow_y1 = end_y + (int)(arrow_len * cos(angle_rad - arrow_angle_rad));
-    SDL_RenderDrawLine(g_renderer, end_x, end_y, arrow_x1, arrow_y1);
-    
-    int arrow_x2 = end_x - (int)(arrow_len * sin(angle_rad + arrow_angle_rad));
-    int arrow_y2 = end_y + (int)(arrow_len * cos(angle_rad + arrow_angle_rad));
-    SDL_RenderDrawLine(g_renderer, end_x, end_y, arrow_x2, arrow_y2);
+    SDL_SetRenderDrawColor(g_renderer, cyan.r, cyan.g, cyan.b, cyan.a);
+    SDL_RenderDrawLine(g_renderer, center_x, center_y, end_x, end_y);
+
+    // Draw plane icon oriented by track at the end of the line
+    draw_plane_icon(end_x, end_y, track, cyan);
 }
 
 
