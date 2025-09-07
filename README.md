@@ -1,6 +1,6 @@
 # ClosestPlane
 
-Track the aircraft nearest to your configured location using ADS-B data from a dump1090 server. The program opens a simple SDL2 window showing flight details and sounds an alert when a plane comes within 5 km.
+Track the aircraft nearest to your configured location using ADS-B data from a dump1090 server. The program opens a simple SDL2 window showing flight details and sounds a rising-tone siren when a plane comes within 5 km.
 
 The application expects the dump1090 server's data feed to be available on port 8080.
 
@@ -16,7 +16,7 @@ The application expects the dump1090 server's data feed to be available on port 
 
 ## Controls
 - `ESC` or close the window to exit.
-- The app refreshes every few seconds and plays an audible alert for nearby traffic.
+- The app refreshes every few seconds and plays an audible rising-tone alert for nearby traffic.
 
 ## Roadmap
 - Provide a Windows Makefile and prebuilt binaries.

@@ -76,7 +76,7 @@ bool init_sdl();
 void close_sdl();
 void render_text(const char* text, int x, int y, SDL_Color color);
 void render_compass(int center_x, int center_y, double bearing);
-Mix_Chunk* create_beep(int freq, int duration_ms);
+Mix_Chunk* create_siren(int start_freq, int end_freq, int duration_ms);
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp);
 double deg2rad(double deg);
 double haversine_distance(double lat1, double lon1, double lat2, double lon2);
@@ -308,8 +308,8 @@ bool init_sdl() {
     }
 
     if (g_audio_available) {
-        // Create synthesized beep sound
-        g_alert_sound = create_beep(880, 500); // 880Hz (A5 note) for 500ms
+        // Create synthesized siren sound with a rising tone
+        g_alert_sound = create_siren(440, 880, 1000);
         if (!g_alert_sound) {
             SDL_Log("Failed to create alert sound");
         }
@@ -401,9 +401,9 @@ void render_compass(int center_x, int center_y, double bearing) {
 
 
 /**
- * @brief Creates a simple sine wave beep sound and returns it as an SDL_mixer Chunk.
+ * @brief Creates a siren sound with a rising tone and returns it as an SDL_mixer Chunk.
  */
-Mix_Chunk* create_beep(int freq, int duration_ms) {
+Mix_Chunk* create_siren(int start_freq, int end_freq, int duration_ms) {
     int sample_rate = 44100;
     int num_samples = (duration_ms * sample_rate) / 1000;
     int buffer_size = num_samples * sizeof(Sint16);
@@ -412,8 +412,12 @@ Mix_Chunk* create_beep(int freq, int duration_ms) {
     if (!buffer) return NULL;
 
     double volume = 4000;
+    double freq_inc = (double)(end_freq - start_freq) / num_samples;
+    double phase = 0.0;
     for (int i = 0; i < num_samples; i++) {
-        buffer[i] = (Sint16)(volume * sin(2.0 * M_PI * freq * i / sample_rate));
+        double current_freq = start_freq + freq_inc * i;
+        phase += 2.0 * M_PI * current_freq / sample_rate;
+        buffer[i] = (Sint16)(volume * sin(phase));
     }
 
     SDL_RWops* rw = SDL_RWFromMem(buffer, buffer_size);
